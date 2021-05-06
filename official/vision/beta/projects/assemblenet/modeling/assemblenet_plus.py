@@ -65,9 +65,20 @@ def softmax_merge_peer_attentions(peers):
   """
   data_format = tf.keras.backend.image_data_format()
   assert data_format == 'channels_last'
+  dtype =
 
+  initial_attn_weights = lambda: tf.random.truncated_normal(
+    [len(peers)],
+    mean=0.0,
+    stddev=0.01,
+    dtype=tf.float32)
+  attn_weights = #todo: fill here
 
-  return
+  weighted_peers = []
+  for i,peer in enumerate(peers):
+    weighted_peers.append(attn_weights[i]*peer)
+
+  return tf.add_n(weighted_peers)
 
 
 def apply_attention(inputs,
@@ -75,28 +86,43 @@ def apply_attention(inputs,
                     attention_in=None,
                     use_5d_mode=False):
   """Applies peer-attention or self-attention to the input tensor.
+
   Depending on the attention_mode, this function either applies channel-wise
   self-attention or peer-attention. For the peer-attention, the function
   combines multiple candidate attention vectors (given as attention_in), by
   learning softmax-sum weights described in the AssembleNet++ paper. Note that
   the attention is applied individually for each frame, which showed better
   accuracies than using video-level attention.
+
   Args:
     inputs: A `Tensor`. Either 4D or 5D, depending of use_5d_mode.
     attention_mode: `str` specifying mode. If not `peer', does self-attention.
     attention_in: A list of `Tensors' of size [batch*time, channels].
     use_5d_mode: `bool` indicating whether the inputs are in 5D tensor or 4D.
-    data_format: `str`. Only works for "channels_last" currently. If use_5d_mode
-      is True, its shape is `[batch, time, height, width, channels]`. Otherwise
-      `[batch*time, height, width, channels]`.
+
   Returns:
     The output `Tensor` after concatenation.
   """
   data_format = tf.keras.backend.image_data_format()
   assert data_format == 'channels_last'
 
+  if use_5d_mode:
+    h_channel_loc = 2
+  else:
+    h_channel_loc = 1
 
-  inputs =
+  if attention_mode == 'peer':
+    attn = softmax_merge_peer_attentions(attention_in)
+  else:
+    attn = tf.math.reduce_mean(inputs, [h_channel_loc, h_channel_loc+1])
+  attn = tf.keras.layers.Dense(
+    units=inputs.shape[-1],
+    kernel_initializer=tf.random_normal_initializer(stddev=.01))(
+    inputs=attn)
+  attn = tf.math.sigmoid(attn)
+  channel_attn = tf.expand_dims(tf.expand_dims(attn, h_channel_loc), h_channel_loc)
+
+  inputs = tf.math.multiply(inputs, channel_attn)
 
   return inputs
 
@@ -252,9 +278,14 @@ def fusion_with_peer_attention(inputs: List[tf.Tensor],
       else:
         inp = conv_function(
           channel_inps[0], lg_channel, kernel_size=1, strides=1)
-
-
-
+      inps.append(inp)
+    else:
+      if key == lg_channel:
+        inp = tf.add_n(channel_inps)
+      else:
+        inp = conv_function(
+          channel_inps[0], lg_channel, kernel_size=1, strides=1)
+      inps.append(inp)
 
   return tf.add_n(inps)
 
@@ -268,12 +299,9 @@ def object_conv_stem(inputs):
   Returns:
     The output `Tensor`.
   """
-  inputs = tf.keras.layers.MaxPooling2D(
-    inputs=inputs,
-    pool_size=4,
-    strides=4,
-    padding='SAME',
-  )
+  inputs = tf.keras.layers.MaxPool2D(
+    pool_size=4, strides=4, padding='SAME')(
+        inputs=inputs)
   inputs = tf.identity(inputs, 'initial_max_pool')
 
   return inputs
@@ -320,7 +348,7 @@ class AssembleNetPlus(tf.keras.Model):
     logging.info('model_structure=%r', model_structure)
     logging.info('model_edge_weights=%r', model_edge_weights)
     structure = model_structure
-
+    #todo: fill here
 
 
 
@@ -342,8 +370,8 @@ class AssembleNetPlusModel(tf.keras.Model):
                input_specs: Mapping[str, tf.keras.layers.InputSpec] = None,
                max_pool_preditions: bool = False,
                **kwargs):
-    inputs =
-    outputs =
+    inputs = #todo: fill here
+    outputs = #todo: fill here
 
     super(AssembleNetPlusModel, self).__init__(
         inputs=inputs, outputs=outputs, **kwargs)
@@ -427,6 +455,7 @@ def build_assemblenet_plus(
   """Builds assemblenet++ backbone."""
   del l2_regularizer
 
+  #todo: fill here
 
   return backbone
 
