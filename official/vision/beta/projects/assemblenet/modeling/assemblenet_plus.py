@@ -65,14 +65,9 @@ def softmax_merge_peer_attentions(peers):
   """
   data_format = tf.keras.backend.image_data_format()
   assert data_format == 'channels_last'
-  dtype =
 
-  initial_attn_weights = lambda: tf.random.truncated_normal(
-    [len(peers)],
-    mean=0.0,
-    stddev=0.01,
-    dtype=tf.float32)
-  attn_weights = #todo: fill here
+  initial_attn_weights = tf.keras.initializers.TruncatedNormal(stddev=0.01)(len[peers])
+  attn_weights = tf.keras.layers.Softmax()(input = initial_attn_weights)
 
   weighted_peers = []
   for i,peer in enumerate(peers):
@@ -257,6 +252,13 @@ def fusion_with_peer_attention(inputs: List[tf.Tensor],
     # Since we do not want the object channel size to increase the number of
     # parameters for every fusion, we exclude it when computing lg_channel.
     #todo: fill here
+    if inp.shape[-1] > lg_channel :  # pylint: disable=line-too-long
+      lg_channel = inp.shape[3]
+
+  if index is None:
+    weights = tf.math.sigmoid(tf.cast(self._edge_weights, dtype))
+
+  #TODO: To be done by Class
 
   per_channel_inps = _ApplyEdgeWeight(
     weights_shape=[len(inputs)],
@@ -472,7 +474,10 @@ def build_assemblenet_plus_model(
   model_structure, _ = cfg.blocks_to_flat_lists(backbone_cfg.blocks)
   model = AssembleNetPlusModel(
       backbone,
-      #todo: fill here
-      )
+      num_classes=num_classes,
+      num_frames=backbone_cfg.num_frames,
+      model_structure=model_structure,
+      input_specs=input_specs_dict,
+      max_pool_preditions=model_config.max_pool_preditions)
   return model
 
