@@ -136,7 +136,7 @@ class _ApplyEdgeWeight(layers.Layer):
                attention_in: tf.Tensor = None,
                use_5d_mode: bool = False,
                model_edge_weights: Optional[List[Any]] = None,
-               num_object_classes: int = None, #todo: newly added - check
+               num_object_classes: int = None, #todo: newly added - check https://github.com/google-research/google-research/blob/bc7791a7770ce3466fe8df84bec65fed0b77ecb8/assemblenet/run_asn_with_object.py#L57
                **kwargs):
     """Constructor.
 
@@ -271,7 +271,7 @@ def fusion_with_peer_attention(inputs: List[tf.Tensor],
                                attention_in=None,
                                use_5d_mode: bool = False,
                                model_edge_weights: Optional[List[Any]] = None,
-                               num_object_classes: ):
+                               num_object_classes: int = None): # todo: newly added - check https://github.com/google-research/google-research/blob/bc7791a7770ce3466fe8df84bec65fed0b77ecb8/assemblenet/run_asn_with_object.py#L57
   """Weighted summation of multiple tensors, while using peer-attention.
 
   Summation weights are to be learned. Uses spatial max pooling and 1x1 conv.
@@ -538,7 +538,7 @@ class AssembleNetPlus(tf.keras.Model):
 
 @tf.keras.utils.register_keras_serializable(package='Vision')
 class AssembleNetPlusModel(tf.keras.Model):
- """An AssembleNet++ model builder."""
+  """An AssembleNet++ model builder."""
 
   def __init__(self,
                backbone,
@@ -632,6 +632,11 @@ def assemblenet_plus(assemblenet_depth: int,
                    input_specs: layers.InputSpec = layers.InputSpec(
                        shape=[None, None, None, None, 3]),
                    model_edge_weights: Optional[List[Any]] = None,
+                   bn_decay: float = rf.BATCH_NORM_DECAY,
+                   bn_epsilon: float = rf.BATCH_NORM_EPSILON,
+                   use_sync_bn: bool = False,
+                   use_object_input: bool = False,  # todo: newly added - doc later
+                   attention_mode: str = None,  # todo: newly added - doc later
                    max_pool_preditions: bool = False,
                      **kwargs):
   """Returns the AssembleNet++ model for a given size and number of output classes."""
@@ -645,13 +650,27 @@ def assemblenet_plus(assemblenet_depth: int,
   input_specs_dict = {'image': input_specs}
   params = ASSEMBLENET_SPECS[assemblenet_depth]
   backbone = AssembleNetPlus(
-    #todo: fill here
-    **kwargs
-  )
+    block_fn=params['block'],
+    num_blocks=params['num_blocks'],
+    num_frames=num_frames,
+    model_structure=model_structure,
+    input_specs=input_specs,
+    model_edge_weights=model_edge_weights,
+    bn_decay=bn_decay,
+    bn_epsilon=bn_epsilon,
+    use_sync_bn=use_sync_bn,
+    use_object_input=use_object_input,
+    attention_mode=attention_mode,
+    **kwargs)
   return AssembleNetPlusModel(
     backbone,
-    #todo: fill here
+    num_classes=num_classes,
+    num_frames=num_frames,
+    model_structure=model_structure,
+    input_specs=input_specs_dict,
+    max_pool_preditions=max_pool_preditions,
     **kwargs)
+
 
 @backbone_factory.register_backbone_builder('assemblenet_plus')
 def build_assemblenet_plus(
@@ -661,8 +680,36 @@ def build_assemblenet_plus(
   """Builds assemblenet++ backbone."""
   del l2_regularizer
 
-  #todo: fill here
+  backbone_type = model_config.backbone.type
+  backbone_cfg = model_config.backbone.get()
+  norm_activation_config = model_config.norm_activation
+  assert backbone_type == 'assemblenet++'
 
+  assemblenet_depth = int(backbone_cfg.model_id)
+  if assemblenet_depth not in ASSEMBLENET_SPECS:
+    raise ValueError('Not a valid assemblenet_depth:', assemblenet_depth)
+  model_structure, model_edge_weights = cfg.blocks_to_flat_lists(
+      backbone_cfg.blocks)
+  params = ASSEMBLENET_SPECS[assemblenet_depth]
+  block_fn = functools.partial(
+      params['block'],
+      use_sync_bn=norm_activation_config.use_sync_bn,
+      bn_decay=norm_activation_config.norm_momentum,
+      bn_epsilon=norm_activation_config.norm_epsilon)
+  backbone = AssembleNetPlus(
+      block_fn=block_fn,
+      num_blocks=params['num_blocks'],
+      num_frames=backbone_cfg.num_frames,
+      model_structure=model_structure,
+      input_specs=input_specs,
+      model_edge_weights=model_edge_weights,
+      use_sync_bn=norm_activation_config.use_sync_bn,
+      bn_decay=norm_activation_config.norm_momentum,
+      bn_epsilon=norm_activation_config.norm_epsilon,
+      use_object_input=backbone_cfg.use_object_input, #todo: get from backbone config
+      attention_mode=backbone_cfg.attention_mode) #todo: get from backbone config
+  logging.info('Number of parameters in AssembleNet++ backbone: %f M.',
+               backbone.count_params() / 10.**6)
   return backbone
 
 @model_factory.register_model_builder('assemblenet_plus')
