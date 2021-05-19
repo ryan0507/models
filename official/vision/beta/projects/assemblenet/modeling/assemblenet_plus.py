@@ -66,7 +66,7 @@ def softmax_merge_peer_attentions(peers):
   data_format = tf.keras.backend.image_data_format()
   assert data_format == 'channels_last'
 
-  initial_attn_weights = tf.keras.initializers.TruncatedNormal(stddev=0.01)(len[peers])
+  initial_attn_weights = tf.keras.initializers.TruncatedNormal(stddev=0.01)([len(peers)])
   attn_weights = tf.keras.layers.Softmax()(input = initial_attn_weights)
 
   weighted_peers = []
@@ -136,6 +136,7 @@ class _ApplyEdgeWeight(layers.Layer):
                attention_in: tf.Tensor = None,
                use_5d_mode: bool = False,
                model_edge_weights: Optional[List[Any]] = None,
+               num_object_classes: int = None, #todo: newly added - check
                **kwargs):
     """Constructor.
 
@@ -162,6 +163,7 @@ class _ApplyEdgeWeight(layers.Layer):
     self._attention_in = attention_in
     self._use_5d_mode = use_5d_mode
     self._model_edge_weights = model_edge_weights
+    self._num_object_classes = num_object_classes
     data_format = tf.keras.backend.image_data_format()
     assert data_format == 'channels_last'
 
@@ -178,9 +180,28 @@ class _ApplyEdgeWeight(layers.Layer):
     return dict(list(base_config.items()) + list(config.items()))
 
   def build(self, input_shape: tf.TensorShape):
-    #todo: fill here
+    if self._weights_shape[0] == 1:
+      self._edge_weights = 1.0
+      return
 
-    return
+    if self._index is None or not self._model_edge_weights:
+      self._edge_weights = self.add_weight(
+        shape=self._weights_shape,
+        initializer=tf.keras.initializers.TruncatedNormal(
+          mean=0.0, stddev=0.01),
+        trainable=True,
+        name='agg_weights')
+    else:
+      initial_weights_after_sigmoid = np.asarray(
+        self._model_edge_weights[self._index][0]).astype('float32')
+      # Initial_weights_after_sigmoid is never 0, as the initial weights are
+      # based the results of a successful connectivity search.
+      initial_weights = -np.log(1. / initial_weights_after_sigmoid - 1.)
+      self._edge_weights = self.add_weight(
+        shape=self._weights_shape,
+        initializer=tf.constant_initializer(initial_weights),
+        trainable=False,
+        name='agg_weights')
 
   def call(self,
            inputs: List[tf.Tensor],
@@ -194,10 +215,54 @@ class _ApplyEdgeWeight(layers.Layer):
     else:
       h_channel_loc = 1
 
-    #todo: fill here
+    # get smallest spatial size and largest channels
+    sm_size = [10000, 10000]
+    lg_channel = 0
+    for inp in inputs:
+      # assume batch X height x width x channels
+      sm_size[0] = min(sm_size[0], inp.shape[h_channel_loc])
+      sm_size[1] = min(sm_size[1], inp.shape[h_channel_loc + 1])
+      # Note that, when using object inputs, object channel sizes are usually big.
+      # Since we do not want the object channel size to increase the number of
+      # parameters for every fusion, we exclude it when computing lg_channel.
+      if inp.shape[-1] > lg_channel and inp.shape[-1] != self._num_object_classes:  # pylint: disable=line-too-long
+        lg_channel = inp.shape[3]
 
-    return
+    # loads or creates weight variables to fuse multiple inputs
+    weights = tf.math.sigmoid(tf.cast(self._edge_weights, dtype))
 
+    # Compute weighted inputs. We group inputs with the same channels.
+    per_channel_inps = dict({0: []})
+    for i, inp in enumerate(inputs):
+      if inp.shape[h_channel_loc] != sm_size[0] or inp.shape[h_channel_loc + 1] != sm_size[1]:  # pylint: disable=line-too-long
+        assert sm_size[0] != 0
+        ratio = (inp.shape[h_channel_loc] + 1) // sm_size[0]
+        if use_5d_mode:
+          inp = tf.keras.layers.MaxPool3D([1, ratio, ratio], [1, ratio, ratio],
+                                          padding='same')(
+                                              inp)
+        else:
+          inp = tf.keras.layers.MaxPool2D([ratio, ratio], ratio,
+                                          padding='same')(
+                                              inp)
+
+      weights = tf.cast(weights, inp.dtype)
+      if inp.shape[-1] in per_channel_inps:
+        per_channel_inps[inp.shape[-1]].append(weights[i] * inp)
+      else:
+        per_channel_inps.update({inp.shape[-1]: [weights[i] * inp]})
+
+    # Implementation of connectivity with peer-attention
+    if self._attention_mode:
+      for key, channel_inps in per_channel_inps.items():
+        for idx in range(len(channel_inps)):
+          with tf.name_scope('Connection_' + str(key) + '_' + str(idx)):
+            channel_inps[idx] = apply_attention(channel_inps[idx],
+                                                self._attention_mode,
+                                                self._attention_in,
+                                                self._use_5d_mode)
+
+    return per_channel_inps
 
 
 def fusion_with_peer_attention(inputs: List[tf.Tensor],
@@ -205,7 +270,8 @@ def fusion_with_peer_attention(inputs: List[tf.Tensor],
                                attention_mode=None,
                                attention_in=None,
                                use_5d_mode: bool = False,
-                               model_edge_weights: Optional[List[Any]] = None):
+                               model_edge_weights: Optional[List[Any]] = None,
+                               num_object_classes: ):
   """Weighted summation of multiple tensors, while using peer-attention.
 
   Summation weights are to be learned. Uses spatial max pooling and 1x1 conv.
@@ -251,18 +317,14 @@ def fusion_with_peer_attention(inputs: List[tf.Tensor],
     # Note that, when using object inputs, object channel sizes are usually big.
     # Since we do not want the object channel size to increase the number of
     # parameters for every fusion, we exclude it when computing lg_channel.
-    #todo: fill here
-    if inp.shape[-1] > lg_channel :  # pylint: disable=line-too-long
+    if inp.shape[-1] > lg_channel and inp.shape[-1] != num_object_classes:  # pylint: disable=line-too-long
       lg_channel = inp.shape[3]
-
-  if index is None:
-    weights = tf.math.sigmoid(tf.cast(self._edge_weights, dtype))
-
-  #TODO: To be done by Class
 
   per_channel_inps = _ApplyEdgeWeight(
     weights_shape=[len(inputs)],
     index=index,
+    attention_mode=attention_mode,
+    attention_in=attention_in,
     use_5d_mode=use_5d_mode,
     model_edge_weights=model_edge_weights)(
     inputs)
@@ -292,7 +354,6 @@ def fusion_with_peer_attention(inputs: List[tf.Tensor],
   return tf.add_n(inps)
 
 
-
 def object_conv_stem(inputs):
   """Layers for an object input stem.
   It expects its input tensor to have a separate channel for each object class.
@@ -313,18 +374,20 @@ class AssembleNetPlus(tf.keras.Model):
   """AssembleNet++ backbone."""
 
   def __init__(
-          self,
-          block_fn,
-          num_blocks: List[int],
-          num_frames: int,
-          model_structure: List[Any],
-          input_specs: layers.InputSpec = layers.InputSpec(
-            shape=[None, None, None, None, 3]),
-          model_edge_weights: Optional[List[Any]] = None,
-          bn_decay: float = rf.BATCH_NORM_DECAY,
-          bn_epsilon: float = rf.BATCH_NORM_EPSILON,
-          use_sync_bn: bool = False,
-          **kwargs):
+      self,
+      block_fn,
+      num_blocks: List[int],
+      num_frames: int,
+      model_structure: List[Any],
+      input_specs: layers.InputSpec = layers.InputSpec(
+        shape=[None, None, None, None, 3]),
+      model_edge_weights: Optional[List[Any]] = None,
+      bn_decay: float = rf.BATCH_NORM_DECAY,
+      bn_epsilon: float = rf.BATCH_NORM_EPSILON,
+      use_sync_bn: bool = False,
+      use_object_input: bool = False, #todo: newly added - doc later
+      attention_mode: str = None, #todo: newly added - doc later
+      **kwargs):
     """Generator for AssembleNet++ models.
     
     Args:
@@ -350,11 +413,124 @@ class AssembleNetPlus(tf.keras.Model):
     logging.info('model_structure=%r', model_structure)
     logging.info('model_edge_weights=%r', model_edge_weights)
     structure = model_structure
-    #todo: fill here
 
+    if use_object_input:
+      original_inputs = inputs[0]
+      object_inputs = inputs[1]
+    else:
+      original_inputs = inputs
+      object_inputs = None
 
+    original_num_frames = num_frames
+    assert num_frames > 0, f'Invalid num_frames {num_frames}'
 
+    grouping = {-3: [], -2: [], -1: [], 0: [], 1: [], 2: [], 3: []}
+    for i in range(len(structure)):
+      grouping[structure[i][0]].append(i)
 
+    stem_count = len(grouping[-3]) + len(grouping[-2]) + len(grouping[-1])
+
+    assert stem_count != 0
+    stem_filters = 128 // stem_count
+
+    if len(input_specs.shape) == 5:
+      first_dim = (
+          input_specs.shape[0] * input_specs.shape[1]
+          if input_specs.shape[0] and input_specs.shape[1] else -1)
+      reshape_inputs = tf.reshape(inputs, (first_dim,) + input_specs.shape[2:])
+    elif len(input_specs.shape) == 4:
+      reshape_inputs = original_inputs
+    else:
+      raise ValueError(
+          f'Expect input spec to be 4 or 5 dimensions {input_specs.shape}')
+
+    if grouping[-2]:
+      # Instead of loading optical flows as inputs from data pipeline, we are
+      # applying the "Representation Flow" to RGB frames so that we can compute
+      # the flow within TPU/GPU on fly. It's essentially optical flow since we
+      # do it with RGBs.
+      axis = 3 if data_format == 'channels_last' else 1
+      flow_inputs = rf.RepresentationFlow(
+          original_num_frames,
+          depth=reshape_inputs.shape.as_list()[axis],
+          num_iter=40,
+          bottleneck=1)(
+              reshape_inputs)
+    streams = []
+
+    for i in range(len(structure)):
+      with tf.name_scope('Node_' + str(i)):
+        if structure[i][0] == -1:
+          inputs = asn.rgb_conv_stem(
+              reshape_inputs,
+              original_num_frames,
+              stem_filters,
+              temporal_dilation=structure[i][1],
+              bn_decay=bn_decay,
+              bn_epsilon=bn_epsilon,
+              use_sync_bn=use_sync_bn)
+          streams.append(inputs)
+        elif structure[i][0] == -2:
+          inputs = asn.flow_conv_stem(
+              flow_inputs,
+              stem_filters,
+              temporal_dilation=structure[i][1],
+              bn_decay=bn_decay,
+              bn_epsilon=bn_epsilon,
+              use_sync_bn=use_sync_bn)
+          streams.append(inputs)
+        elif structure[i][0] == -3:
+          # In order to use the object inputs, you need to feed your object
+          # input tensor here.
+          inputs = object_conv_stem(object_inputs)
+          streams.append(inputs)
+        else:
+          block_number = structure[i][0]
+
+          combined_inputs = [streams[structure[i][1][j]]
+                             for j in range(0, len(structure[i][1]))]
+
+          logging.info(grouping)
+          nodes_below = []
+          for k in range(-3, structure[i][0]):
+            nodes_below = nodes_below + grouping[k]
+
+          peers = []
+          if attention_mode:
+            lg_channel = -1
+            logging.info(nodes_below)
+            for k in nodes_below:
+              logging.info(streams[k].shape)
+              lg_channel = max(streams[k].shape[3], lg_channel)
+
+            for node_index in nodes_below:
+              attn = tf.reduce_mean(streams[node_index], [1,2])
+
+              attn = tf.keras.layers.Dense(
+                units=lg_channel,
+                kernel_initializer=tf.random_normal_initializer(stddev=.01))(
+                  inputs=attn)
+              peers.append(attn)
+
+          combined_inputs = fusion_with_peer_attention(
+            combined_inputs,
+            index=i,
+            attention_mode=attention_mode,
+            attention_in=peers,
+            use_5d_mode=False)
+
+          graph = asn.block_group(
+            inputs=combined_inputs,
+            filters=structure[i][2],
+            block_fn=block_fn,
+            blocks=num_blocks[block_number],
+            strides=structure[i][4],
+            name='block_group' + str(i),
+            block_level=structure[i][0],
+            num_frames=num_frames,
+            temporal_dilation=structure[i][3])
+
+          streams.append(graph)
 
     super(AssembleNetPlus, self).__init__(
       inputs=original_inputs, outputs=streams, **kwargs)
@@ -370,10 +546,37 @@ class AssembleNetPlusModel(tf.keras.Model):
                num_frames: int,
                model_structure: List[Any],
                input_specs: Mapping[str, tf.keras.layers.InputSpec] = None,
-               max_pool_preditions: bool = False,
+               max_pool_predictions: bool = False,
                **kwargs):
-    inputs = #todo: fill here
-    outputs = #todo: fill here
+    if not input_specs:
+      input_specs = {
+          'image': layers.InputSpec(shape=[None, None, None, None, 3])
+      }
+    self._self_setattr_tracking = False
+    self._config_dict = {
+        'backbone': backbone,
+        'num_classes': num_classes,
+        'num_frames': num_frames,
+        'input_specs': input_specs,
+        'model_structure': model_structure,
+    }
+    self._input_specs = input_specs
+    self._backbone = backbone
+    grouping = {-3: [], -2: [], -1: [], 0: [], 1: [], 2: [], 3: []}
+    for i in range(len(model_structure)):
+      grouping[model_structure[i][0]].append(i)
+
+    inputs = {
+        k: tf.keras.Input(shape=v.shape[1:]) for k, v in input_specs.items()
+    }
+    streams = self._backbone(inputs['image'])
+
+    outputs = asn.multi_stream_heads(
+        streams,
+        grouping[3],
+        num_frames,
+        num_classes,
+        max_pool_preditions=max_pool_predictions)
 
     super(AssembleNetPlusModel, self).__init__(
         inputs=inputs, outputs=outputs, **kwargs)
@@ -393,6 +596,7 @@ class AssembleNetPlusModel(tf.keras.Model):
   @classmethod
   def from_config(cls, config, custom_objects=None):
     return cls(**config)
+
 
 ASSEMBLENET_SPECS = {
       26: {
