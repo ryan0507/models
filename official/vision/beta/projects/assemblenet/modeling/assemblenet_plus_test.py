@@ -33,9 +33,9 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   def test_network_creation(self, depth, ):
 
     batch_size = 2
-
-    input_specs = tf.keras.layers.InputSpec(shape=[None, 32, 224, 224, 3])
-    inputs = np.random.rand(batch_size, 32, 224, 224, 3)
+    input_size = 224
+    input_specs = tf.keras.layers.InputSpec(shape=[None, 32, input_size, input_size, 3])
+    inputs = np.random.rand(batch_size, 32, input_size, input_size, 3)
 
     num_frames = 32
     model_structure = asn_config.full_asnp50_structure

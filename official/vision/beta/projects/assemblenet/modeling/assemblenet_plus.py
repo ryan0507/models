@@ -601,27 +601,27 @@ class AssembleNetPlusModel(tf.keras.Model):
 ASSEMBLENET_SPECS = {
       26: {
           'block': asn.bottleneck_block_interleave,
-          'layers': [2, 2, 2, 2]
+          'num_blocks': [2, 2, 2, 2]
       },
       38: {
           'block': asn.bottleneck_block_interleave,
-          'layers': [2, 4, 4, 2]
+          'num_blocks': [2, 4, 4, 2]
       },
       50: {
           'block': asn.bottleneck_block_interleave,
-          'layers': [3, 4, 6, 3]
+          'num_blocks': [3, 4, 6, 3]
       },
       68: {
           'block': asn.bottleneck_block_interleave,
-          'layers': [3, 4, 12, 3]
+          'num_blocks': [3, 4, 12, 3]
       },
       77: {
           'block': asn.bottleneck_block_interleave,
-          'layers': [3, 4, 15, 3]
+          'num_blocks': [3, 4, 15, 3]
       },
       101: {
           'block': asn.bottleneck_block_interleave,
-          'layers': [3, 4, 23, 3]
+          'num_blocks': [3, 4, 23, 3]
       },
   }
 
