@@ -637,7 +637,7 @@ def assemblenet_plus(assemblenet_depth: int,
                    use_sync_bn: bool = False,
                    use_object_input: bool = False,  # todo: newly added - doc later
                    attention_mode: str = None,  # todo: newly added - doc later
-                   max_pool_preditions: bool = False,
+                   max_pool_predictions: bool = False,
                      **kwargs):
   """Returns the AssembleNet++ model for a given size and number of output classes."""
 
@@ -668,7 +668,7 @@ def assemblenet_plus(assemblenet_depth: int,
     num_frames=num_frames,
     model_structure=model_structure,
     input_specs=input_specs_dict,
-    max_pool_preditions=max_pool_preditions,
+    max_pool_predictions=max_pool_predictions,
     **kwargs)
 
 
@@ -729,6 +729,6 @@ def build_assemblenet_plus_model(
       num_frames=backbone_cfg.num_frames,
       model_structure=model_structure,
       input_specs=input_specs_dict,
-      max_pool_preditions=model_config.max_pool_preditions)
+      max_pool_predictions=model_config.max_pool_predictions)
   return model
 

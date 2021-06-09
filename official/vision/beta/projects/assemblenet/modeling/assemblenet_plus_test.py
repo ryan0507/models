@@ -23,30 +23,48 @@ from official.vision.beta.projects.assemblenet.configs import assemblenet as asn
 
 class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   @parameterized.parameters(
-    (26),
-    (38),
-    (50),
-    (68),
-    (77),
-    (101),
+    (50, False),
+    (50, True)
   )
-  def test_network_creation(self, depth, ):
+  def test_network_creation(self, depth, use_object_input):
 
     batch_size = 2
-    input_size = 224
-    input_specs = tf.keras.layers.InputSpec(shape=[None, 32, input_size, input_size, 3])
-    inputs = np.random.rand(batch_size, 32, input_size, input_size, 3)
-
     num_frames = 32
-    model_structure = asn_config.full_asnp50_structure
+    img_size = 224
     num_classes = 101 #ufc-101
+    num_object_classes = 151 #151 is for ADE-20k
+    # input_specs = tf.keras.layers.InputSpec(shape=(None, 32, input_size, input_size, 3))
+    # inputs = np.random.rand(batch_size, 32, input_size, input_size, 3)
+
+
+    if use_object_input:
+      vid_input = (batch_size * num_frames, img_size, img_size, 3)
+      obj_input = (batch_size * num_frames, img_size, img_size, num_object_classes)
+      input_specs = tf.keras.layers.InputSpec(shape=(vid_input,obj_input))
+      inputs = np.random.rand(batch_size * num_frames, img_size, img_size, 3, batch_size * num_frames, img_size, img_size, num_object_classes)
+
+      # We are using the full_asnp50_structure, since we feed both video and object.
+      model_structure = asn_config.full_asnp50_structure #using object input
+      model_edge_weights = asn_config.full_asnp_structure_weights
+    else:
+      #video input: (batch_size, FLAGS.num_frames, image_size, image_size, 3)
+      input_specs = tf.keras.layers.InputSpec(shape=(batch_size, num_frames, img_size, img_size, 3))
+      inputs = np.random.rand(batch_size, num_frames, img_size, img_size, 3)
+
+      # Here, we are using model_structures.asn50_structure for AssembleNet++
+      # instead of full_asnp50_structure. By using asn50_structure, it
+      # essentially becomes AssembleNet++ without objects, only requiring RGB
+      # inputs (and optical flow to be computed inside the model).
+      model_structure = asn_config.asn50_structure
+      model_edge_weights = asn_config.asn_structure_weights
 
     model = asnp.assemblenet_plus(assemblenet_depth=depth,
                                   num_classes=num_classes,
                                  num_frames=num_frames,
                                  model_structure=model_structure,
-                                 input_specs=input_specs,)
-                                 # use_object_input: bool = False,
+                                 model_edge_weights=model_edge_weights,
+                                 input_specs=input_specs,
+                                 use_object_input=use_object_input)
                                  # attention_mode: str = None,
                                  # max_pool_preditions: bool = False,)
 
