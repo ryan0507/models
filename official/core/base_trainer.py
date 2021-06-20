@@ -164,8 +164,7 @@ def get_runtime_options(config: ExperimentConfig):
   if config.runtime.tpu_enable_xla_dynamic_padder is not None:
     xla_options["enable_xla_dynamic_padder"] = (
         config.runtime.tpu_enable_xla_dynamic_padder)
-  return tf.distribute.RunOptions(
-      experimental_xla_options=tf.tpu.XLAOptions(**xla_options))
+  return tf.distribute.RunOptions(experimental_enable_dynamic_batch_size= True)
 
 
 @gin.configurable

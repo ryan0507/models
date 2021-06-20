@@ -379,8 +379,7 @@ class AssembleNetPlus(tf.keras.Model):
       num_blocks: List[int],
       num_frames: int,
       model_structure: List[Any],
-      input_specs: layers.InputSpec = layers.InputSpec(
-        shape=[None, None, None, None, 3]),
+      input_specs: List[layers.InputSpec] ,
       model_edge_weights: Optional[List[Any]] = None,
       bn_decay: float = rf.BATCH_NORM_DECAY,
       bn_epsilon: float = rf.BATCH_NORM_EPSILON,
@@ -683,7 +682,7 @@ def build_assemblenet_plus(
   backbone_type = model_config.backbone.type
   backbone_cfg = model_config.backbone.get()
   norm_activation_config = model_config.norm_activation
-  assert backbone_type == 'assemblenet++'
+  assert backbone_type == 'assemblenet_plus'
 
   assemblenet_depth = int(backbone_cfg.model_id)
   if assemblenet_depth not in ASSEMBLENET_SPECS:
@@ -715,7 +714,7 @@ def build_assemblenet_plus(
 @model_factory.register_model_builder('assemblenet_plus')
 def build_assemblenet_plus_model(
     input_specs: tf.keras.layers.InputSpec,
-    model_config: cfg.AssembleNetModel,
+    model_config: cfg.AssembleNetPlusModel,
     num_classes: int,
     l2_regularizer: tf.keras.regularizers.Regularizer = None):
   """Builds assemblenet++ model."""

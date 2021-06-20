@@ -175,6 +175,13 @@ class AssembleNet(hyperparams.Config):
   combine_method: str = 'sigmoid'
   blocks: Tuple[BlockSpec, ...] = tuple()
 
+@dataclasses.dataclass
+class AssembleNetPlus(hyperparams.Config):
+  model_id: str = '50'
+  num_frames: int = 0
+  attention_mode: str = 'peer'
+  blocks: Tuple[BlockSpec, ...] = tuple()
+
 
 @dataclasses.dataclass
 class Backbone3D(backbones_3d.Backbone3D):
@@ -186,6 +193,7 @@ class Backbone3D(backbones_3d.Backbone3D):
   """
   type: str = 'assemblenet'
   assemblenet: AssembleNet = AssembleNet()
+  assemblenet_plus: AssembleNetPlus = AssembleNetPlus()
 
 
 @dataclasses.dataclass
@@ -196,6 +204,16 @@ class AssembleNetModel(video_classification.VideoClassificationModel):
   norm_activation: common.NormActivation = common.NormActivation(
       norm_momentum=0.99, norm_epsilon=1e-5, use_sync_bn=True)
   max_pool_preditions: bool = False
+
+@dataclasses.dataclass
+class AssembleNetPlusModel(video_classification.VideoClassificationModel):
+  """The AssembleNet model config."""
+  model_type: str = 'assemblenet_plus'
+  backbone: Backbone3D = Backbone3D()
+  norm_activation: common.NormActivation = common.NormActivation(
+      norm_momentum=0.99, norm_epsilon=1e-5, use_sync_bn=True)
+  max_pool_predictions: bool = False
+
 
 
 @exp_factory.register_config_factory('assemblenet50_kinetics600')
@@ -221,5 +239,31 @@ def assemblenet_kinetics600() -> cfg.ExperimentConfig:
   assert exp.task.model.backbone.assemblenet.num_frames > 0, (
       f'backbone num_frames '
       f'{exp.task.model.backbone.assemblenet}')
+
+  return exp
+
+@exp_factory.register_config_factory('assemblenetplus_kinetics600')
+def assemblenetplus_kinetics600() -> cfg.ExperimentConfig:
+  """Video classification on Videonet with assemblenet."""
+  exp = video_classification.video_classification_kinetics600()
+
+  feature_shape = (32, 224, 224, 3)
+  exp.task.train_data.global_batch_size = 1024
+  exp.task.validation_data.global_batch_size = 32
+  exp.task.train_data.feature_shape = feature_shape
+  exp.task.validation_data.feature_shape = (120, 224, 224, 3)
+  exp.task.train_data.dtype = 'bfloat16'
+  exp.task.validation_data.dtype = 'bfloat16'
+
+  model = AssembleNetPlusModel()
+  model.backbone.assemblenet_plus.model_id = '50'
+  model.backbone.assemblenet_plus.blocks = flat_lists_to_blocks(
+      asn50_structure, asn_structure_weights)
+  model.backbone.assemblenet_plus.num_frames = feature_shape[0]
+  exp.task.model = model
+
+  assert exp.task.model.backbone.assemblenet_plus.num_frames > 0, (
+      f'backbone num_frames '
+      f'{exp.task.model.backbone.assemblenet_plus}')
 
   return exp

@@ -30,7 +30,7 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
 
     batch_size = 2
     num_frames = 32
-    img_size = 224
+    img_size = 256
     num_classes = 101 #ufc-101
     num_object_classes = 151 #151 is for ADE-20k
     # input_specs = tf.keras.layers.InputSpec(shape=(None, 32, input_size, input_size, 3))
@@ -40,7 +40,8 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
     if use_object_input:
       vid_input = (batch_size * num_frames, img_size, img_size, 3)
       obj_input = (batch_size * num_frames, img_size, img_size, num_object_classes)
-      input_specs = tf.keras.layers.InputSpec(shape=(vid_input,obj_input))
+      input_specs = (tf.keras.layers.InputSpec(shape=(vid_input)),
+                     tf.keras.layers.InputSpec(shape=(obj_input)))
       inputs = np.random.rand(batch_size * num_frames, img_size, img_size, 3, batch_size * num_frames, img_size, img_size, num_object_classes)
 
       # We are using the full_asnp50_structure, since we feed both video and object.
