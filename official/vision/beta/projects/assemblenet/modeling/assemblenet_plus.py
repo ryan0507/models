@@ -379,7 +379,7 @@ class AssembleNetPlus(tf.keras.Model):
       num_blocks: List[int],
       num_frames: int,
       model_structure: List[Any],
-      input_specs: List[layers.InputSpec] ,
+      input_specs: layers.InputSpec = layers.InputSpec,
       model_edge_weights: Optional[List[Any]] = None,
       bn_decay: float = rf.BATCH_NORM_DECAY,
       bn_epsilon: float = rf.BATCH_NORM_EPSILON,

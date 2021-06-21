@@ -39,21 +39,21 @@ class TrainTest(tf.test.TestCase):
     tf.io.gfile.makedirs(data_dir)
     self._data_path = os.path.join(data_dir, 'data.tfrecord')
     # pylint: disable=g-complex-comprehension
-    self.examples = [
+    examples = [
         tfexample_utils.make_video_test_example(
             image_shape=(36, 36, 3),
             audio_shape=(20, 128),
             label=random.randint(0, 100)) for _ in range(2)
     ]
     # pylint: enable=g-complex-comprehension
-    tfexample_utils.dump_to_tfrecord(self._data_path, tf_examples=self.examples)
+    tfexample_utils.dump_to_tfrecord(self._data_path, tf_examples=examples)
 
   def test_run(self):
     saved_flag_values = flagsaver.save_flag_values()
     train_lib.tfm_flags.define_flags()
     FLAGS.mode = 'train'
     FLAGS.model_dir = self._model_dir
-    FLAGS.experiment = 'assemblenetplus_kinetics600'
+    FLAGS.experiment = 'assemblenet50_kinetics600'
     logging.info('Test pipeline correctness.')
     num_frames = 4
 
@@ -68,8 +68,8 @@ class TrainTest(tf.test.TestCase):
         'task': {
             'model': {
                 'backbone': {
-                    'assemblenet_plus': {
-                        'model_id': '50',
+                    'assemblenet': {
+                        'model_id': '26',
                         'num_frames': num_frames,
                     },
                 },
@@ -99,8 +99,6 @@ class TrainTest(tf.test.TestCase):
 
     flagsaver.restore_flag_values(saved_flag_values)
 
-import sys
-import runpy
-import os
+
 if __name__ == '__main__':
   tf.test.main()
