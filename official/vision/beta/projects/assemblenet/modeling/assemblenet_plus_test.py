@@ -23,7 +23,6 @@ from official.vision.beta.projects.assemblenet.configs import assemblenet as asn
 
 class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   @parameterized.parameters(
-    (50, False),
     (50, True)
   )
   def test_network_creation(self, depth, use_object_input):
@@ -42,8 +41,9 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
       obj_input = (batch_size * num_frames, img_size, img_size, num_object_classes)
       input_specs = (tf.keras.layers.InputSpec(shape=(vid_input)),
                      tf.keras.layers.InputSpec(shape=(obj_input)))
-      inputs = np.random.rand(batch_size * num_frames, img_size, img_size, 3, batch_size * num_frames, img_size, img_size, num_object_classes)
-
+      vid_inputs = np.random.rand(batch_size * num_frames, img_size, img_size, 3)
+      obj_inputs = np.random.rand(batch_size * num_frames, img_size, img_size, num_object_classes)
+      inputs = [vid_inputs, obj_inputs]
       # We are using the full_asnp50_structure, since we feed both video and object.
       model_structure = asn_config.full_asnp50_structure #using object input
       model_edge_weights = asn_config.full_asnp_structure_weights

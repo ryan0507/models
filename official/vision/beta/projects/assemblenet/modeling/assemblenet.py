@@ -739,6 +739,7 @@ def multi_stream_heads(streams,
   return outputs
 
 
+###### Actual Models that passed with input values
 class AssembleNet(tf.keras.Model):
   """AssembleNet backbone."""
 
@@ -972,7 +973,7 @@ ASSEMBLENET_SPECS = {
     },
 }
 
-
+##### USED FOR DEBUGGING TF1 VALUES
 def assemblenet_v1(assemblenet_depth: int,
                    num_classes: int,
                    num_frames: int,

@@ -379,13 +379,14 @@ class AssembleNetPlus(tf.keras.Model):
       num_blocks: List[int],
       num_frames: int,
       model_structure: List[Any],
-      input_specs: layers.InputSpec = layers.InputSpec,
+      input_specs: layers.InputSpec = layers.InputSpec(
+        shape=[None, None, None, None, 3]),
       model_edge_weights: Optional[List[Any]] = None,
       bn_decay: float = rf.BATCH_NORM_DECAY,
       bn_epsilon: float = rf.BATCH_NORM_EPSILON,
       use_sync_bn: bool = False,
       use_object_input: bool = False, #todo: newly added - doc later
-      attention_mode: str = None, #todo: newly added - doc later
+      attention_mode: str = 'peer', #todo: newly added - doc later
       **kwargs):
     """Generator for AssembleNet++ models.
     
@@ -404,7 +405,7 @@ class AssembleNetPlus(tf.keras.Model):
       Model `function` that takes in `inputs` and `is_training` and returns the
       output `Tensor` of the AssembleNet model.
     """
-    inputs = tf.keras.Input(shape=input_specs.shape[1:])
+    inputs = tf.keras.Input(shape=input_specs[0].shape[1:])
     data_format = tf.keras.backend.image_data_format()
 
     # Creation of the model graph.
@@ -414,12 +415,13 @@ class AssembleNetPlus(tf.keras.Model):
     structure = model_structure
 
     if use_object_input:
-      original_inputs = inputs[0]
-      object_inputs = inputs[1]
+      original_inputs = inputs
+      object_inputs = tf.keras.Input(shape=input_specs[1].shape[1:])
     else:
       original_inputs = inputs
       object_inputs = None
 
+    input_specs = input_specs[0]
     original_num_frames = num_frames
     assert num_frames > 0, f'Invalid num_frames {num_frames}'
 
@@ -546,11 +548,17 @@ class AssembleNetPlusModel(tf.keras.Model):
                model_structure: List[Any],
                input_specs: Mapping[str, tf.keras.layers.InputSpec] = None,
                max_pool_predictions: bool = False,
+               use_object_input: bool = False,
                **kwargs):
+
     if not input_specs:
       input_specs = {
           'image': layers.InputSpec(shape=[None, None, None, None, 3])
       }
+
+    if use_object_input:
+      input_specs['object'] = layers.InputSpec(shape=[None, None, None, None, 3])
+
     self._self_setattr_tracking = False
     self._config_dict = {
         'backbone': backbone,
@@ -568,7 +576,11 @@ class AssembleNetPlusModel(tf.keras.Model):
     inputs = {
         k: tf.keras.Input(shape=v.shape[1:]) for k, v in input_specs.items()
     }
-    streams = self._backbone(inputs['image'])
+
+    if use_object_input:
+      streams = self._backbone(inputs=[inputs['image'], inputs['object']])
+    else:
+      streams = self._backbone(inputs=inputs['image'])
 
     outputs = asn.multi_stream_heads(
         streams,
@@ -631,9 +643,6 @@ def assemblenet_plus(assemblenet_depth: int,
                    input_specs: layers.InputSpec = layers.InputSpec(
                        shape=[None, None, None, None, 3]),
                    model_edge_weights: Optional[List[Any]] = None,
-                   bn_decay: float = rf.BATCH_NORM_DECAY,
-                   bn_epsilon: float = rf.BATCH_NORM_EPSILON,
-                   use_sync_bn: bool = False,
                    use_object_input: bool = False,  # todo: newly added - doc later
                    attention_mode: str = None,  # todo: newly added - doc later
                    max_pool_predictions: bool = False,
@@ -646,7 +655,7 @@ def assemblenet_plus(assemblenet_depth: int,
   if assemblenet_depth not in ASSEMBLENET_SPECS:
     raise ValueError('Not a valid assemblenet_depth:', assemblenet_depth)
 
-  input_specs_dict = {'image': input_specs}
+  input_specs_dict = {'image': input_specs[0], 'object': input_specs[1]}
   params = ASSEMBLENET_SPECS[assemblenet_depth]
   backbone = AssembleNetPlus(
     block_fn=params['block'],
@@ -655,9 +664,6 @@ def assemblenet_plus(assemblenet_depth: int,
     model_structure=model_structure,
     input_specs=input_specs,
     model_edge_weights=model_edge_weights,
-    bn_decay=bn_decay,
-    bn_epsilon=bn_epsilon,
-    use_sync_bn=use_sync_bn,
     use_object_input=use_object_input,
     attention_mode=attention_mode,
     **kwargs)
@@ -718,7 +724,7 @@ def build_assemblenet_plus_model(
     num_classes: int,
     l2_regularizer: tf.keras.regularizers.Regularizer = None):
   """Builds assemblenet++ model."""
-  input_specs_dict = {'image': input_specs}
+  input_specs_dict = {'image': input_specs[0], 'object':input_specs[1]}
   backbone = build_assemblenet_plus(input_specs, model_config, l2_regularizer)
   backbone_cfg = model_config.backbone.get()
   model_structure, _ = cfg.blocks_to_flat_lists(backbone_cfg.blocks)
