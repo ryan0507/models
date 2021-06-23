@@ -393,13 +393,21 @@ class AssembleNetPlus(tf.keras.Model):
     Args:
       block_fn: `function` for the block to use within the model. Currently only
         has `bottleneck_block_interleave as its option`.
-      layers: list of 4 `int`s denoting the number of blocks to include in each of
-        the 4 block groups. Each group consists of blocks that take inputs of the
-        same resolution.
-      num_classes: `int` number of possible classes for video classification.
-      data_format: `str` either "channels_first" for `[batch*time, channels,
-        height, width]` or "channels_last" for `[batch*time, height, width,
-        channels]`.
+      num_blocks: list of 4 `int`s denoting the number of blocks to include in
+        each of the 4 block groups. Each group consists of blocks that take
+        inputs of the same resolution.
+      num_frames: the number of frames in the input tensor.
+      model_structure: AssembleNet model structure in the string format.
+      input_specs: `tf.keras.layers.InputSpec` specs of the input tensor.
+        Dimension should be `[batch*time, height, width, channels]`.
+      model_edge_weights: AssembleNet model structure connection weights in the
+        string format.
+      bn_decay: `float` batch norm decay parameter to use.
+      bn_epsilon: `float` batch norm epsilon parameter to use.
+      use_sync_bn: use synchronized batch norm for TPU.
+      use_object_input : 'bool' values whether using object inputs
+      attention_mode : 'str' , default 'self', 'peer'
+      **kwargs: pass through arguments.
 
     Returns:
       Model `function` that takes in `inputs` and `is_training` and returns the
@@ -587,7 +595,7 @@ class AssembleNetPlusModel(tf.keras.Model):
         grouping[3],
         num_frames,
         num_classes,
-        max_pool_preditions=max_pool_predictions)
+        max_pool_predictions=max_pool_predictions)
 
     super(AssembleNetPlusModel, self).__init__(
         inputs=inputs, outputs=outputs, **kwargs)

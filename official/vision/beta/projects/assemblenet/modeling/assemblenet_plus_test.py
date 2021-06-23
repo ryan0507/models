@@ -67,7 +67,7 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
                                  input_specs=input_specs,
                                  use_object_input=use_object_input)
                                  # attention_mode: str = None,
-                                 # max_pool_preditions: bool = False,)
+                                 # max_pool_predictions: bool = False,)
 
 
     outputs = model(inputs)

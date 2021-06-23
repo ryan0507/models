@@ -203,7 +203,7 @@ class AssembleNetModel(video_classification.VideoClassificationModel):
   backbone: Backbone3D = Backbone3D()
   norm_activation: common.NormActivation = common.NormActivation(
       norm_momentum=0.99, norm_epsilon=1e-5, use_sync_bn=True)
-  max_pool_preditions: bool = False
+  max_pool_predictions: bool = False
 
 @dataclasses.dataclass
 class AssembleNetPlusModel(video_classification.VideoClassificationModel):
