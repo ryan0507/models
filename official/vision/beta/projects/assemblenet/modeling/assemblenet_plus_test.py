@@ -23,9 +23,10 @@ from official.vision.beta.projects.assemblenet.configs import assemblenet as asn
 
 class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   @parameterized.parameters(
-    (50, True)
+    (50, False, ''),
+    (50, False, 'peer')
   )
-  def test_network_creation(self, depth, use_object_input):
+  def test_network_creation(self, depth, use_object_input, attention_mode):
 
     batch_size = 2
     num_frames = 32
@@ -65,10 +66,8 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
                                  model_structure=model_structure,
                                  model_edge_weights=model_edge_weights,
                                  input_specs=input_specs,
-                                 use_object_input=use_object_input)
-                                 # attention_mode: str = None,
-                                 # max_pool_predictions: bool = False,)
-
+                                 use_object_input=use_object_input,
+                                 attention_mode = attention_mode,)
 
     outputs = model(inputs)
     self.assertAllEqual(outputs.shape.as_list(), [batch_size, num_classes])

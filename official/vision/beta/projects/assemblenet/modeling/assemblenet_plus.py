@@ -413,7 +413,7 @@ class AssembleNetPlus(tf.keras.Model):
       Model `function` that takes in `inputs` and `is_training` and returns the
       output `Tensor` of the AssembleNet model.
     """
-    inputs = tf.keras.Input(shape=input_specs[0].shape[1:])
+    inputs = tf.keras.Input(shape=input_specs.shape[1:])
     data_format = tf.keras.backend.image_data_format()
 
     # Creation of the model graph.
@@ -429,7 +429,6 @@ class AssembleNetPlus(tf.keras.Model):
       original_inputs = inputs
       object_inputs = None
 
-    input_specs = input_specs[0]
     original_num_frames = num_frames
     assert num_frames > 0, f'Invalid num_frames {num_frames}'
 
@@ -557,6 +556,7 @@ class AssembleNetPlusModel(tf.keras.Model):
                input_specs: Mapping[str, tf.keras.layers.InputSpec] = None,
                max_pool_predictions: bool = False,
                use_object_input: bool = False,
+               attention_mode : str = None,
                **kwargs):
 
     if not input_specs:
@@ -663,7 +663,7 @@ def assemblenet_plus(assemblenet_depth: int,
   if assemblenet_depth not in ASSEMBLENET_SPECS:
     raise ValueError('Not a valid assemblenet_depth:', assemblenet_depth)
 
-  input_specs_dict = {'image': input_specs[0], 'object': input_specs[1]}
+  input_specs_dict = {'image': input_specs}
   params = ASSEMBLENET_SPECS[assemblenet_depth]
   backbone = AssembleNetPlus(
     block_fn=params['block'],
@@ -682,6 +682,7 @@ def assemblenet_plus(assemblenet_depth: int,
     model_structure=model_structure,
     input_specs=input_specs_dict,
     max_pool_predictions=max_pool_predictions,
+    attention_mode = attention_mode,
     **kwargs)
 
 
@@ -732,7 +733,7 @@ def build_assemblenet_plus_model(
     num_classes: int,
     l2_regularizer: tf.keras.regularizers.Regularizer = None):
   """Builds assemblenet++ model."""
-  input_specs_dict = {'image': input_specs[0], 'object':input_specs[1]}
+  input_specs_dict = {'image': input_specs}
   backbone = build_assemblenet_plus(input_specs, model_config, l2_regularizer)
   backbone_cfg = model_config.backbone.get()
   model_structure, _ = cfg.blocks_to_flat_lists(backbone_cfg.blocks)
