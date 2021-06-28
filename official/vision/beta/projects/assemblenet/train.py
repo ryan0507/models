@@ -53,18 +53,33 @@ def main(_):
                 f'{params.task.validation_data.feature_shape}')
 
   if 'assemblenet' in FLAGS.experiment:
-    if 'eval' in FLAGS.mode:
-      # Use the feature shape in validation_data for all jobs. The number of
-      # frames in train_data will be used to construct the Assemblenet model.
-      params.task.model.backbone.assemblenet.num_frames = params.task.validation_data.feature_shape[
-          0]
-      shape = params.task.validation_data.feature_shape
+    if 'plus' in FLAGS.experiment:
+      if 'eval' in FLAGS.mode:
+        # Use the feature shape in validation_data for all jobs. The number of
+        # frames in train_data will be used to construct the Assemblenet++ model.
+        params.task.model.backbone.assemblenet_plus.num_frames = params.task.validation_data.feature_shape[
+            0]
+        shape = params.task.validation_data.feature_shape
+      else:
+        params.task.model.backbone.assemblenet_plus.num_frames = params.task.train_data.feature_shape[
+            0]
+        shape = params.task.train_data.feature_shape
+      logging.info('mode %r num_frames %r feature shape %r', FLAGS.mode,
+                   params.task.model.backbone.assemblenet_plus.num_frames, shape)
+
     else:
-      params.task.model.backbone.assemblenet.num_frames = params.task.train_data.feature_shape[
-          0]
-      shape = params.task.train_data.feature_shape
-    logging.info('mode %r num_frames %r feature shape %r', FLAGS.mode,
-                 params.task.model.backbone.assemblenet.num_frames, shape)
+      if 'eval' in FLAGS.mode:
+        # Use the feature shape in validation_data for all jobs. The number of
+        # frames in train_data will be used to construct the Assemblenet model.
+        params.task.model.backbone.assemblenet.num_frames = params.task.validation_data.feature_shape[
+            0]
+        shape = params.task.validation_data.feature_shape
+      else:
+        params.task.model.backbone.assemblenet.num_frames = params.task.train_data.feature_shape[
+            0]
+        shape = params.task.train_data.feature_shape
+      logging.info('mode %r num_frames %r feature shape %r', FLAGS.mode,
+                   params.task.model.backbone.assemblenet.num_frames, shape)
 
   # Sets mixed_precision policy. Using 'mixed_float16' or 'mixed_bfloat16'
   # can have significant impact on model speeds by utilizing float16 in case of

@@ -23,8 +23,9 @@ from official.vision.beta.projects.assemblenet.configs import assemblenet as asn
 
 class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   @parameterized.parameters(
-    (50, False, ''),
-    (50, False, 'peer')
+    (50, False, 'peer'),
+    (50, False, 'self'),
+    (50, False, '')
   )
   def test_network_creation(self, depth, use_object_input, attention_mode):
 
