@@ -68,8 +68,8 @@ class TrainTest(tf.test.TestCase):
         'task': {
             'model': {
                 'backbone': {
-                    'assemblenet': {
-                        'model_id': '26',
+                    'assemblenet_plus': {
+                        'model_id': '50',
                         'num_frames': num_frames,
                     },
                 },

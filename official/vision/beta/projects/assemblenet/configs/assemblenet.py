@@ -179,7 +179,7 @@ class AssembleNet(hyperparams.Config):
 class AssembleNetPlus(hyperparams.Config):
   model_id: str = '50'
   num_frames: int = 0
-  attention_mode: str = 'peer'
+  attention_mode: str = 'None'
   blocks: Tuple[BlockSpec, ...] = tuple()
 
 
