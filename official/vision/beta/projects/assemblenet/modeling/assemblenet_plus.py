@@ -399,6 +399,7 @@ class AssembleNetPlus(tf.keras.Model):
       num_frames: the number of frames in the input tensor.
       model_structure: AssembleNet model structure in the string format.
       input_specs: `tf.keras.layers.InputSpec` specs of the input tensor.
+      todo: add description on dimensionality of input_specs 'tuple'
         Dimension should be `[batch*time, height, width, channels]`.
       model_edge_weights: AssembleNet model structure connection weights in the
         string format.
@@ -413,7 +414,6 @@ class AssembleNetPlus(tf.keras.Model):
       Model `function` that takes in `inputs` and `is_training` and returns the
       output `Tensor` of the AssembleNet model.
     """
-    inputs = tf.keras.Input(shape=input_specs.shape[1:])
     data_format = tf.keras.backend.image_data_format()
 
     # Creation of the model graph.
@@ -423,10 +423,11 @@ class AssembleNetPlus(tf.keras.Model):
     structure = model_structure
 
     if use_object_input:
-      original_inputs = inputs
+      original_inputs = tf.keras.Input(shape=input_specs[0].shape[1:])
       object_inputs = tf.keras.Input(shape=input_specs[1].shape[1:])
+      input_specs = input_specs[0]
     else:
-      original_inputs = inputs
+      original_inputs = tf.keras.Input(shape=input_specs.shape[1:])
       object_inputs = None
 
     original_num_frames = num_frames
@@ -445,7 +446,7 @@ class AssembleNetPlus(tf.keras.Model):
       first_dim = (
           input_specs.shape[0] * input_specs.shape[1]
           if input_specs.shape[0] and input_specs.shape[1] else -1)
-      reshape_inputs = tf.reshape(inputs, (first_dim,) + input_specs.shape[2:])
+      reshape_inputs = tf.reshape(original_inputs, (first_dim,) + input_specs.shape[2:])
     elif len(input_specs.shape) == 4:
       reshape_inputs = original_inputs
     else:
@@ -540,9 +541,12 @@ class AssembleNetPlus(tf.keras.Model):
 
           streams.append(graph)
 
+    if use_object_input:
+      inputs = [original_inputs, object_inputs]
+    else:
+      inputs = original_inputs
     super(AssembleNetPlus, self).__init__(
-      inputs=original_inputs, outputs=streams, **kwargs)
-
+      inputs=inputs, outputs=streams, **kwargs)
 
 @tf.keras.utils.register_keras_serializable(package='Vision')
 class AssembleNetPlusModel(tf.keras.Model):
@@ -564,8 +568,8 @@ class AssembleNetPlusModel(tf.keras.Model):
           'image': layers.InputSpec(shape=[None, None, None, None, 3])
       }
 
-    if use_object_input:
-      input_specs['object'] = layers.InputSpec(shape=[None, None, None, None, 3])
+    if use_object_input and 'object' not in input_specs:
+        input_specs['object'] = layers.InputSpec(shape=[None, None, None, None])
 
     self._self_setattr_tracking = False
     self._config_dict = {
@@ -663,7 +667,11 @@ def assemblenet_plus(assemblenet_depth: int,
   if assemblenet_depth not in ASSEMBLENET_SPECS:
     raise ValueError('Not a valid assemblenet_depth:', assemblenet_depth)
 
-  input_specs_dict = {'image': input_specs}
+  if use_object_input: #todo: assuming input_specs = [vid, obj] when use_object_input = True
+    input_specs_dict = {'image': input_specs[0], 'object': input_specs[1]}
+  else:
+    input_specs_dict = {'image': input_specs}
+
   params = ASSEMBLENET_SPECS[assemblenet_depth]
   backbone = AssembleNetPlus(
     block_fn=params['block'],
@@ -675,12 +683,13 @@ def assemblenet_plus(assemblenet_depth: int,
     use_object_input=use_object_input,
     attention_mode=attention_mode,
     **kwargs)
-  return AssembleNetPlusModel(
+  return AssembleNetPlusModel( #todo: clean up unnecessary/duplicate parameters
     backbone,
     num_classes=num_classes,
     num_frames=num_frames,
     model_structure=model_structure,
     input_specs=input_specs_dict,
+    use_object_input=use_object_input,
     max_pool_predictions=max_pool_predictions,
     attention_mode = attention_mode,
     **kwargs)

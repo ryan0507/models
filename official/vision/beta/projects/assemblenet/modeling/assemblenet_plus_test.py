@@ -23,6 +23,7 @@ from official.vision.beta.projects.assemblenet.configs import assemblenet as asn
 
 class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   @parameterized.parameters(
+    (50, True, ''),
     (50, False, ''),
     (50, False, 'peer')
   )
@@ -33,8 +34,6 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
     img_size = 256
     num_classes = 101 #ufc-101
     num_object_classes = 151 #151 is for ADE-20k
-    # input_specs = tf.keras.layers.InputSpec(shape=(None, 32, input_size, input_size, 3))
-    # inputs = np.random.rand(batch_size, 32, input_size, input_size, 3)
 
 
     if use_object_input:
