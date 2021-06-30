@@ -67,7 +67,7 @@ def softmax_merge_peer_attentions(peers):
   assert data_format == 'channels_last'
 
   initial_attn_weights = tf.keras.initializers.TruncatedNormal(stddev=0.01)([len(peers)])
-  attn_weights = tf.keras.layers.Softmax()(input = initial_attn_weights)
+  attn_weights = tf.nn.softmax(initial_attn_weights)
 
   weighted_peers = []
   for i,peer in enumerate(peers):
