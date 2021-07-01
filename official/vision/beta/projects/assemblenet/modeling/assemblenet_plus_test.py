@@ -25,7 +25,8 @@ class AssembleNetPlusTest(parameterized.TestCase, tf.test.TestCase):
   @parameterized.parameters(
     (50, True, ''),
     (50, False, ''),
-    (50, False, 'peer')
+    (50, False, 'peer'),
+    (50, True, 'peer')
   )
   def test_network_creation(self, depth, use_object_input, attention_mode):
 
